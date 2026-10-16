@@ -1,0 +1,6 @@
+{
+  "name": "AutoMail - Email Marketing & Campaign Automation",
+  "description": "Complete email marketing automation platform with Excel/CSV contact import, visual campaign builder, SMTP delivery queue, scheduling, real-time delivery logs, and campaign analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
