@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import * as xlsx from 'xlsx';
 import {
   Upload,
   FileSpreadsheet,
@@ -77,7 +78,8 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<ImportPreviewData | null>(null);
-  const [selectedFileBase64, setSelectedFileBase64] = useState<string | null>(null);
+  const [parsedRows, setParsedRows] = useState<Record<string, any>[]>([]);
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const [columnMapping, setColumnMapping] = useState({
     email: '',
     name: '',
@@ -111,7 +113,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   const [suppressReason, setSuppressReason] = useState<'unsubscribed' | 'hard_bounce' | 'spam_complaint' | 'manual'>('manual');
   const [suppressNotes, setSuppressNotes] = useState('');
 
-  // Handle File Selection
+  // Handle File Selection with instant client-side SheetJS parsing (Zero network payload limits)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -119,58 +121,187 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
     setIsUploading(true);
     setUploadError(null);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = (reader.result as string).split(',')[1];
-        setSelectedFileBase64(base64);
-
-        const res = await fetch('/api/contacts/import-preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileBase64: base64, fileName: file.name }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to parse file.');
-        }
-
-        setPreviewData(data);
-        setColumnMapping(data.suggestedMapping);
-        setDefaultImportTag(`Import-${file.name.replace(/\.[^/.]+$/, '').slice(0, 15)}`);
-      } catch (err: any) {
-        setUploadError(err.message);
-      } finally {
-        setIsUploading(false);
+    try {
+      const buffer = await file.arrayBuffer();
+      // Parse file using SheetJS (supports .xlsx, .xls, .csv, .tsv regardless of extension typo)
+      const workbook = xlsx.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        throw new Error('Spreadsheet has no readable sheets or tabs.');
       }
-    };
-    reader.readAsDataURL(file);
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = xlsx.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+
+      if (rawRows.length === 0) {
+        throw new Error('The uploaded spreadsheet contains no data rows.');
+      }
+
+      const headers = Object.keys(rawRows[0]);
+
+      // Smart Column Auto-Mapping
+      const mapping = {
+        email: '',
+        name: '',
+        company: '',
+        city: '',
+        phone: '',
+        tags: '',
+      };
+
+      for (const h of headers) {
+        const lower = h.toLowerCase().trim().replace(/[-_]/g, ' ');
+        if (!mapping.email && (lower.includes('email') || lower.includes('e mail') || lower === 'mail')) {
+          mapping.email = h;
+        } else if (!mapping.name && (lower.includes('name') || lower === 'first name' || lower === 'full name' || lower === 'contact')) {
+          mapping.name = h;
+        } else if (!mapping.company && (lower.includes('company') || lower.includes('organization') || lower.includes('org') || lower.includes('business'))) {
+          mapping.company = h;
+        } else if (!mapping.city && (lower.includes('city') || lower.includes('location') || lower.includes('region'))) {
+          mapping.city = h;
+        } else if (!mapping.phone && (lower.includes('phone') || lower.includes('mobile') || lower.includes('cell') || lower.includes('tel'))) {
+          mapping.phone = h;
+        } else if (!mapping.tags && (lower.includes('tag') || lower.includes('segment') || lower.includes('category'))) {
+          mapping.tags = h;
+        }
+      }
+
+      // If email wasn't matched by header title, check sample row values for '@'
+      if (!mapping.email) {
+        for (const h of headers) {
+          const sample = String(rawRows[0][h] || '');
+          if (sample.includes('@') && sample.includes('.')) {
+            mapping.email = h;
+            break;
+          }
+        }
+      }
+
+      // Email validation (RFC 5322 compatible)
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const existingEmails = new Set(contacts.map((c) => c.email.toLowerCase()));
+      const seenInFile = new Set<string>();
+
+      let validCount = 0;
+      let invalidCount = 0;
+      let duplicateInFileCount = 0;
+      let duplicateInDbCount = 0;
+
+      for (const row of rawRows) {
+        const emailVal = mapping.email ? String(row[mapping.email] || '').trim() : '';
+        if (!emailVal || !emailRegex.test(emailVal)) {
+          invalidCount++;
+          continue;
+        }
+        const emailLower = emailVal.toLowerCase();
+        if (seenInFile.has(emailLower)) {
+          duplicateInFileCount++;
+          continue;
+        }
+        seenInFile.add(emailLower);
+        if (existingEmails.has(emailLower)) {
+          duplicateInDbCount++;
+        } else {
+          validCount++;
+        }
+      }
+
+      setParsedRows(rawRows);
+      setUploadedFileName(file.name);
+      setPreviewData({
+        fileName: file.name,
+        totalRows: rawRows.length,
+        headers,
+        suggestedMapping: mapping,
+        sampleRows: rawRows.slice(0, 10),
+        stats: {
+          total: rawRows.length,
+          valid: validCount,
+          existingInDb: duplicateInDbCount,
+          duplicatesInFile: duplicateInFileCount,
+          invalidEmails: invalidCount,
+        },
+      });
+      setColumnMapping(mapping);
+      setDefaultImportTag(`Import-${file.name.replace(/\.[^/.]+$/, '').slice(0, 15)}`);
+    } catch (err: any) {
+      setUploadError(`Failed to process spreadsheet: ${err.message || 'Please check that the file is a valid Excel or CSV document.'}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Confirm Import
   const handleConfirmImport = async () => {
-    if (!previewData || !selectedFileBase64 || !columnMapping.email) return;
+    if (!previewData || parsedRows.length === 0 || !columnMapping.email) return;
 
     setIsConfirmingImport(true);
     try {
-      const res = await fetch('/api/contacts/import-confirm', {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const mappedContacts: Array<{
+        email: string;
+        name: string;
+        company: string;
+        city: string;
+        phone: string;
+        tags: string[];
+      }> = [];
+
+      for (const row of parsedRows) {
+        const rawEmail = String(row[columnMapping.email] || '').trim();
+        if (!rawEmail || !emailRegex.test(rawEmail)) continue;
+
+        const rawName = columnMapping.name ? String(row[columnMapping.name] || '').trim() : '';
+        const rawCompany = columnMapping.company ? String(row[columnMapping.company] || '').trim() : '';
+        const rawCity = columnMapping.city ? String(row[columnMapping.city] || '').trim() : '';
+        const rawPhone = columnMapping.phone ? String(row[columnMapping.phone] || '').trim() : '';
+        const rawTags = columnMapping.tags ? String(row[columnMapping.tags] || '').trim() : '';
+
+        const tagsList: string[] = [];
+        if (defaultImportTag) tagsList.push(defaultImportTag);
+        if (rawTags) {
+          rawTags.split(/[,;|]/).map((t) => t.trim()).filter(Boolean).forEach((t) => {
+            if (!tagsList.includes(t)) tagsList.push(t);
+          });
+        }
+
+        mappedContacts.push({
+          email: rawEmail,
+          name: rawName,
+          company: rawCompany,
+          city: rawCity,
+          phone: rawPhone,
+          tags: tagsList,
+        });
+      }
+
+      if (mappedContacts.length === 0) {
+        throw new Error('No valid email records found with the selected column mapping.');
+      }
+
+      const res = await fetch('/api/contacts/import-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileBase64: selectedFileBase64,
-          fileName: previewData.fileName,
-          mapping: columnMapping,
-          defaultTag: defaultImportTag,
+          contacts: mappedContacts,
+          source: uploadedFileName || 'excel_import',
           updateExisting,
         }),
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Import failed');
+      const responseText = await res.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Server returned unexpected response (status ${res.status}): ${responseText.slice(0, 100)}`);
+      }
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Import failed');
+      }
 
       setPreviewData(null);
-      setSelectedFileBase64(null);
+      setParsedRows([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onImportConfirmed();
     } catch (err: any) {
@@ -282,7 +413,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
             type="file"
             ref={fileInputRef}
             onChange={handleFileChange}
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx,.xls,.csv,.exlx,.tsv"
             className="hidden"
           />
 

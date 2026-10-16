@@ -1,6 +1,21 @@
 {
   "contacts": [
     {
+      "id": "cnt-1792134889344-ursk7",
+      "email": "test.import@company.com",
+      "name": "Test User",
+      "company": "Test Corp",
+      "city": "",
+      "phone": "",
+      "tags": [
+        "VIP"
+      ],
+      "status": "active",
+      "source": "test.xlsx",
+      "createdAt": "2026-10-16T07:14:49.344Z",
+      "updatedAt": "2026-10-16T07:14:49.344Z"
+    },
+    {
       "id": "cnt-1",
       "email": "sarah.jenkins@acmecorp.com",
       "name": "Sarah Jenkins",
@@ -190,20 +205,21 @@
       "plainTextContent": "Hello {{Name}},\n\nJoin our exclusive masterclass on email deliverability for {{Company}}.\n\nThursday, 11:00 AM EST\nReserve seat: https://automail.io/webinar/register\n\nUnsubscribe: {{UnsubscribeLink}}",
       "targetType": "segment",
       "targetSegmentId": "seg-1",
-      "status": "sending",
+      "status": "completed",
       "scheduledAt": "2026-10-16T18:50:33.688Z",
       "rateLimitPerMin": 30,
       "totalRecipients": 2,
-      "sentCount": 0,
-      "deliveredCount": 0,
-      "openedCount": 0,
-      "clickedCount": 0,
+      "sentCount": 2,
+      "deliveredCount": 2,
+      "openedCount": 2,
+      "clickedCount": 1,
       "bouncedCount": 0,
       "failedCount": 0,
       "unsubscribedCount": 0,
       "createdAt": "2026-10-16T01:50:33.688Z",
-      "updatedAt": "2026-10-16T06:51:27.168Z",
-      "startedAt": "2026-10-16T06:51:27.168Z"
+      "updatedAt": "2026-10-16T06:51:29.519Z",
+      "startedAt": "2026-10-16T06:51:27.168Z",
+      "completedAt": "2026-10-16T06:51:29.519Z"
     }
   ],
   "queue": [
@@ -215,10 +231,11 @@
       "recipientEmail": "sarah.jenkins@acmecorp.com",
       "recipientName": "Sarah Jenkins",
       "recipientCompany": "Acme Corp",
-      "status": "pending",
-      "attempts": 0,
+      "status": "sent",
+      "attempts": 1,
       "maxAttempts": 3,
-      "createdAt": "2026-10-16T06:51:27.167Z"
+      "createdAt": "2026-10-16T06:51:27.167Z",
+      "lastAttemptAt": "2026-10-16T06:51:27.719Z"
     },
     {
       "id": "queue-1792133487168-i8xew",
@@ -228,13 +245,100 @@
       "recipientEmail": "elena.rostova@fintechvanguard.eu",
       "recipientName": "Elena Rostova",
       "recipientCompany": "FinTech Vanguard",
-      "status": "pending",
-      "attempts": 0,
+      "status": "sent",
+      "attempts": 1,
       "maxAttempts": 3,
-      "createdAt": "2026-10-16T06:51:27.168Z"
+      "createdAt": "2026-10-16T06:51:27.168Z",
+      "lastAttemptAt": "2026-10-16T06:51:27.784Z"
     }
   ],
   "logs": [
+    {
+      "id": "log-1792133497093-h1n8k",
+      "timestamp": "2026-10-16T06:51:37.093Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "elena.rostova@fintechvanguard.eu",
+      "recipientName": "Elena Rostova",
+      "event": "clicked",
+      "status": "success",
+      "details": "Subscriber clicked link in email body [HTTP 302 Redirect]",
+      "ipAddress": "198.51.100.176"
+    },
+    {
+      "id": "log-1792133494637-0ja6u",
+      "timestamp": "2026-10-16T06:51:34.637Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "elena.rostova@fintechvanguard.eu",
+      "recipientName": "Elena Rostova",
+      "event": "opened",
+      "status": "success",
+      "details": "Subscriber opened email (tracking pixel loaded via Mail Client)",
+      "ipAddress": "198.51.100.157"
+    },
+    {
+      "id": "log-1792133494100-bznym",
+      "timestamp": "2026-10-16T06:51:34.100Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "sarah.jenkins@acmecorp.com",
+      "recipientName": "Sarah Jenkins",
+      "event": "opened",
+      "status": "success",
+      "details": "Subscriber opened email (tracking pixel loaded via Mail Client)",
+      "ipAddress": "198.51.100.22"
+    },
+    {
+      "id": "log-1792133487847-3tjk6",
+      "timestamp": "2026-10-16T06:51:27.847Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "elena.rostova@fintechvanguard.eu",
+      "recipientName": "Elena Rostova",
+      "event": "delivered",
+      "status": "success",
+      "smtpCode": 250,
+      "smtpResponse": "250 2.0.0 OK <sim-1792133487847-ju3ho@automail.io> queued for delivery by MTA (TLS 1.3)",
+      "messageId": "<sim-1792133487847-ju3ho@automail.io>",
+      "details": "Accepted by remote mail exchanger for fintechvanguard.eu. SPF: pass, DKIM: pass, DMARC: pass."
+    },
+    {
+      "id": "log-1792133487785-198du",
+      "timestamp": "2026-10-16T06:51:27.785Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "elena.rostova@fintechvanguard.eu",
+      "recipientName": "Elena Rostova",
+      "event": "sending",
+      "status": "info",
+      "details": "Connecting to mail server for elena.rostova@fintechvanguard.eu... (attempt 1/3)"
+    },
+    {
+      "id": "log-1792133487782-1xzv0",
+      "timestamp": "2026-10-16T06:51:27.782Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "sarah.jenkins@acmecorp.com",
+      "recipientName": "Sarah Jenkins",
+      "event": "delivered",
+      "status": "success",
+      "smtpCode": 250,
+      "smtpResponse": "250 2.0.0 OK <sim-1792133487782-12fly@automail.io> queued for delivery by MTA (TLS 1.3)",
+      "messageId": "<sim-1792133487782-12fly@automail.io>",
+      "details": "Accepted by remote mail exchanger for acmecorp.com. SPF: pass, DKIM: pass, DMARC: pass."
+    },
+    {
+      "id": "log-1792133487720-eccfu",
+      "timestamp": "2026-10-16T06:51:27.720Z",
+      "campaignId": "cmp-102",
+      "campaignName": "Enterprise VIP Strategy Invite",
+      "recipientEmail": "sarah.jenkins@acmecorp.com",
+      "recipientName": "Sarah Jenkins",
+      "event": "sending",
+      "status": "info",
+      "details": "Connecting to mail server for sarah.jenkins@acmecorp.com... (attempt 1/3)"
+    },
     {
       "id": "log-1792133487168-gr5ih",
       "timestamp": "2026-10-16T06:51:27.168Z",
@@ -418,6 +522,23 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "aud-1792134889345-eg80i",
+      "action": "IMPORT_BATCH_CONFIRMED",
+      "user": "admin",
+      "entityType": "contacts",
+      "details": "Imported batch (test.xlsx): 1 added, 0 updated, 0 skipped.",
+      "timestamp": "2026-10-16T07:14:49.345Z"
+    },
+    {
+      "id": "aud-1792133489520-hjfbs",
+      "action": "CAMPAIGN_COMPLETED",
+      "user": "worker",
+      "entityType": "campaign",
+      "entityId": "cmp-102",
+      "details": "Campaign \"Enterprise VIP Strategy Invite\" completed delivery.",
+      "timestamp": "2026-10-16T06:51:29.520Z"
+    },
     {
       "id": "aud-1792133487169-k926r",
       "action": "ENQUEUE_CAMPAIGN",

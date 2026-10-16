@@ -222,6 +222,91 @@ apiRouter.post('/contacts/import-preview', (req: Request, res: Response) => {
   }
 });
 
+apiRouter.post('/contacts/import-batch', (req: Request, res: Response) => {
+  try {
+    const { contacts: incomingContacts, source = 'import', updateExisting = true } = req.body;
+    if (!Array.isArray(incomingContacts)) {
+      return res.status(400).json({ error: 'Expected contacts array' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const contacts = db.get('contacts');
+    const existingByEmail = new Map<string, Contact>(contacts.map((c) => [c.email.toLowerCase(), c]));
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const c of incomingContacts) {
+      if (!c.email || typeof c.email !== 'string') {
+        skippedCount++;
+        continue;
+      }
+      const rawEmail = c.email.trim();
+      if (!emailRegex.test(rawEmail)) {
+        skippedCount++;
+        continue;
+      }
+
+      const emailLower = rawEmail.toLowerCase();
+      const tagsList: string[] = Array.isArray(c.tags) ? [...c.tags] : [];
+
+      if (existingByEmail.has(emailLower)) {
+        if (updateExisting) {
+          const existing = existingByEmail.get(emailLower)!;
+          if (c.name) existing.name = c.name;
+          if (c.company) existing.company = c.company;
+          if (c.city) existing.city = c.city;
+          if (c.phone) existing.phone = c.phone;
+          for (const t of tagsList) {
+            if (!existing.tags.includes(t)) existing.tags.push(t);
+          }
+          existing.updatedAt = now;
+          updatedCount++;
+        } else {
+          skippedCount++;
+        }
+      } else {
+        const newContact: Contact = {
+          id: `cnt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          email: rawEmail,
+          name: c.name || rawEmail.split('@')[0],
+          company: c.company || '',
+          city: c.city || '',
+          phone: c.phone || '',
+          tags: tagsList.length > 0 ? tagsList : ['Imported'],
+          status: 'active',
+          source: source || 'direct_import',
+          createdAt: now,
+          updatedAt: now,
+        };
+        contacts.unshift(newContact);
+        existingByEmail.set(emailLower, newContact);
+        addedCount++;
+      }
+    }
+
+    db.set('contacts', contacts);
+    db.recordAudit(
+      'IMPORT_BATCH_CONFIRMED',
+      'admin',
+      'contacts',
+      `Imported batch (${source}): ${addedCount} added, ${updatedCount} updated, ${skippedCount} skipped.`
+    );
+
+    return res.json({
+      success: true,
+      addedCount,
+      updatedCount,
+      skippedCount,
+      totalContacts: contacts.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: `Batch import failed: ${err.message}` });
+  }
+});
+
 apiRouter.post('/contacts/import-confirm', (req: Request, res: Response) => {
   try {
     const { fileBase64, fileName, mapping, defaultTag, updateExisting } = req.body;
