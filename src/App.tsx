@@ -19,6 +19,7 @@ import {
   SuppressionEntry,
   SmtpConfig,
 } from './types';
+import { dataService } from './services/dataService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -58,11 +59,8 @@ export default function App() {
   // Fetch Dashboard stats
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/dashboard/stats');
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
+      const data = await dataService.getDashboardStats();
+      setStats(data);
     } catch (err) {
       console.error('Failed to fetch dashboard stats:', err);
     }
@@ -71,11 +69,8 @@ export default function App() {
   // Fetch SMTP Configuration
   const fetchSmtpConfig = useCallback(async () => {
     try {
-      const res = await fetch('/api/smtp');
-      if (res.ok) {
-        const data = await res.json();
-        setSmtpConfig(data.smtpConfig);
-      }
+      const cfg = await dataService.getSmtpConfig();
+      setSmtpConfig(cfg);
     } catch (err) {
       console.error('Failed to fetch SMTP config:', err);
     }
@@ -84,21 +79,16 @@ export default function App() {
   // Fetch Contacts
   const fetchContacts = useCallback(async () => {
     try {
-      const params = new URLSearchParams({
-        page: String(contactsPage),
-        limit: '50',
+      const data = await dataService.getContacts({
         search: contactSearch,
         status: contactStatusFilter,
         tag: contactTagFilter,
+        page: contactsPage,
       });
-      const res = await fetch(`/api/contacts?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setContacts(data.contacts || []);
-        setTotalContacts(data.total || 0);
-        setContactsTotalPages(data.totalPages || 1);
-        setAvailableTags(data.availableTags || []);
-      }
+      setContacts(data.contacts || []);
+      setTotalContacts(data.total || 0);
+      setContactsTotalPages(data.totalPages || 1);
+      setAvailableTags(data.availableTags || []);
     } catch (err) {
       console.error('Failed to fetch contacts:', err);
     }
@@ -107,18 +97,12 @@ export default function App() {
   // Fetch Segments & Suppression
   const fetchSegmentsAndSuppression = useCallback(async () => {
     try {
-      const [segRes, supRes] = await Promise.all([
-        fetch('/api/segments'),
-        fetch('/api/suppression'),
+      const [segs, sups] = await Promise.all([
+        dataService.getSegments(),
+        dataService.getSuppression(),
       ]);
-      if (segRes.ok) {
-        const segData = await segRes.json();
-        setSegments(segData.segments || []);
-      }
-      if (supRes.ok) {
-        const supData = await supRes.json();
-        setSuppression(supData.suppression || []);
-      }
+      setSegments(segs || []);
+      setSuppression(sups || []);
     } catch (err) {
       console.error('Failed to fetch segments/suppression:', err);
     }
@@ -127,18 +111,12 @@ export default function App() {
   // Fetch Campaigns & Templates
   const fetchCampaignsAndTemplates = useCallback(async () => {
     try {
-      const [campRes, tmplRes] = await Promise.all([
-        fetch('/api/campaigns'),
-        fetch('/api/templates'),
+      const [camps, tmpls] = await Promise.all([
+        dataService.getCampaigns(),
+        dataService.getTemplates(),
       ]);
-      if (campRes.ok) {
-        const campData = await campRes.json();
-        setCampaigns(campData.campaigns || []);
-      }
-      if (tmplRes.ok) {
-        const tmplData = await tmplRes.json();
-        setTemplates(tmplData.templates || []);
-      }
+      setCampaigns(camps || []);
+      setTemplates(tmpls || []);
     } catch (err) {
       console.error('Failed to fetch campaigns/templates:', err);
     }
@@ -147,25 +125,19 @@ export default function App() {
   // Fetch Logs
   const fetchLogs = useCallback(async () => {
     try {
-      const params = new URLSearchParams({
-        page: String(logsPage),
-        limit: '50',
+      const data = await dataService.getLogs({
         search: logsSearch,
         campaignId: logsCampaignFilter,
         event: logsEventFilter,
         status: logsStatusFilter,
       });
-      const res = await fetch(`/api/logs?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-        setTotalLogs(data.total || 0);
-        setLogsTotalPages(data.totalPages || 1);
-      }
+      setLogs(data.logs || []);
+      setTotalLogs(data.total || 0);
+      setLogsTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('Failed to fetch logs:', err);
     }
-  }, [logsPage, logsSearch, logsCampaignFilter, logsEventFilter, logsStatusFilter]);
+  }, [logsSearch, logsCampaignFilter, logsEventFilter, logsStatusFilter]);
 
   // Initial Load
   useEffect(() => {
@@ -208,12 +180,7 @@ export default function App() {
   // Campaign Handlers
   const handleSendNow = async (campaignId: string) => {
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/send-now`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error || 'Failed to start sending'}`);
-        return false;
-      }
+      await dataService.sendCampaignNow(campaignId);
       handleRefreshAll();
       return true;
     } catch (err: any) {
@@ -224,7 +191,7 @@ export default function App() {
 
   const handlePauseCampaign = async (campaignId: string) => {
     try {
-      await fetch(`/api/campaigns/${campaignId}/pause`, { method: 'POST' });
+      await dataService.pauseCampaign(campaignId);
       fetchCampaignsAndTemplates();
       fetchStats();
       return true;
@@ -235,7 +202,7 @@ export default function App() {
 
   const handleResumeCampaign = async (campaignId: string) => {
     try {
-      await fetch(`/api/campaigns/${campaignId}/resume`, { method: 'POST' });
+      await dataService.resumeCampaign(campaignId);
       fetchCampaignsAndTemplates();
       fetchStats();
       return true;
@@ -246,7 +213,7 @@ export default function App() {
 
   const handleCancelCampaign = async (campaignId: string) => {
     try {
-      await fetch(`/api/campaigns/${campaignId}/cancel`, { method: 'POST' });
+      await dataService.cancelCampaign(campaignId);
       fetchCampaignsAndTemplates();
       fetchStats();
       return true;
@@ -257,7 +224,7 @@ export default function App() {
 
   const handleDuplicateCampaign = async (campaignId: string) => {
     try {
-      await fetch(`/api/campaigns/${campaignId}/duplicate`, { method: 'POST' });
+      await dataService.duplicateCampaign(campaignId);
       fetchCampaignsAndTemplates();
       return true;
     } catch {
@@ -268,7 +235,7 @@ export default function App() {
   const handleDeleteCampaign = async (campaignId: string) => {
     if (!confirm('Are you sure you want to delete this campaign?')) return false;
     try {
-      await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      await dataService.deleteCampaign(campaignId);
       fetchCampaignsAndTemplates();
       fetchStats();
       return true;
@@ -279,18 +246,10 @@ export default function App() {
 
   const handleSendTestEmail = async (campaignId: string, testEmail: string) => {
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/send-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ testEmail }),
-      });
-      const data = await res.json();
+      const res = await dataService.sendTestEmail(campaignId, testEmail);
       fetchLogs();
       fetchStats();
-      return {
-        success: data.result?.success || false,
-        message: data.result?.details || 'Test email dispatched.',
-      };
+      return res;
     } catch (err: any) {
       return { success: false, message: err.message };
     }
@@ -298,16 +257,7 @@ export default function App() {
 
   const handleCreateCampaign = async (data: Partial<Campaign>) => {
     try {
-      const res = await fetch('/api/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error || 'Failed to create campaign'}`);
-        return false;
-      }
+      await dataService.createCampaign(data);
       fetchCampaignsAndTemplates();
       fetchStats();
       return true;
@@ -320,16 +270,7 @@ export default function App() {
   // Contact Handlers
   const handleCreateContact = async (data: Partial<Contact>) => {
     try {
-      const res = await fetch('/api/contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error || 'Failed to add contact'}`);
-        return false;
-      }
+      await dataService.createContact(data);
       fetchContacts();
       fetchStats();
       return true;
@@ -342,7 +283,7 @@ export default function App() {
   const handleDeleteContact = async (id: string) => {
     if (!confirm('Delete this contact?')) return false;
     try {
-      await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
+      await dataService.deleteContact(id);
       fetchContacts();
       fetchStats();
       return true;
@@ -354,11 +295,7 @@ export default function App() {
   // Segments & Suppression Handlers
   const handleCreateSegment = async (data: { name: string; description: string; filterTag: string }) => {
     try {
-      await fetch('/api/segments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      await dataService.createSegment(data);
       fetchSegmentsAndSuppression();
       return true;
     } catch {
@@ -368,7 +305,7 @@ export default function App() {
 
   const handleDeleteSegment = async (id: string) => {
     try {
-      await fetch(`/api/segments/${id}`, { method: 'DELETE' });
+      await dataService.deleteSegment(id);
       fetchSegmentsAndSuppression();
       return true;
     } catch {
@@ -378,11 +315,7 @@ export default function App() {
 
   const handleAddSuppression = async (email: string, reason: any, notes?: string) => {
     try {
-      await fetch('/api/suppression', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, reason, notes }),
-      });
+      await dataService.addSuppression(email, reason, notes);
       fetchSegmentsAndSuppression();
       fetchContacts();
       fetchStats();
@@ -394,7 +327,7 @@ export default function App() {
 
   const handleDeleteSuppression = async (id: string) => {
     try {
-      await fetch(`/api/suppression/${id}`, { method: 'DELETE' });
+      await dataService.deleteSuppression(id);
       fetchSegmentsAndSuppression();
       fetchStats();
       return true;
@@ -406,40 +339,22 @@ export default function App() {
   // SMTP Settings Handlers
   const handleUpdateSmtpConfig = async (config: Partial<SmtpConfig>) => {
     try {
-      const res = await fetch('/api/smtp', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSmtpConfig(data.smtpConfig);
-        return true;
-      }
-      return false;
+      await dataService.updateSmtpConfig(config);
+      setSmtpConfig((prev) => (prev ? { ...prev, ...config } : null));
+      return true;
     } catch {
       return false;
     }
   };
 
   const handleTestSmtpConnection = async (config: Partial<SmtpConfig>) => {
-    const res = await fetch('/api/smtp/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-    const data = await res.json();
-    return data.testResult;
+    return await dataService.testSmtp(config);
   };
 
   // Template Handlers
   const handleCreateTemplate = async (data: Partial<EmailTemplate>) => {
     try {
-      await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      await dataService.createTemplate(data);
       fetchCampaignsAndTemplates();
       return true;
     } catch {

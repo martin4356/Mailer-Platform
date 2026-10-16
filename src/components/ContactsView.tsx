@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Contact, Segment, SuppressionEntry, ImportPreviewData } from '../types';
 import { downloadSampleExcel, downloadSampleCsv, formatTimeAgo } from '../utils/sampleData';
+import { dataService } from '../services/dataService';
 
 interface ContactsViewProps {
   contacts: Contact[];
@@ -278,27 +279,11 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         throw new Error('No valid email records found with the selected column mapping.');
       }
 
-      const res = await fetch('/api/contacts/import-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contacts: mappedContacts,
-          source: uploadedFileName || 'excel_import',
-          updateExisting,
-        }),
+      await dataService.importBatch({
+        contacts: mappedContacts,
+        source: uploadedFileName || 'excel_import',
+        updateExisting,
       });
-
-      const responseText = await res.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        throw new Error(`Server returned unexpected response (status ${res.status}): ${responseText.slice(0, 100)}`);
-      }
-
-      if (!res.ok) {
-        throw new Error(result.error || 'Import failed');
-      }
 
       setPreviewData(null);
       setParsedRows([]);
